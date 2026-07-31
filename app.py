@@ -1,0 +1,135 @@
+"""
+app.py — Data Governance Scorecard (Streamlit-in-Snowflake).
+
+Two pages, session-state routed:
+    Page 1 — Products : all data products, KPIs, portfolio trend, heatmap,
+                         ranked product list (click to drill).
+    Page 2 — Tables    : the tables inside one product (drilled straight from
+                         product -> table, no database level), KPIs scoped to
+                         the product, its trend, a table heatmap, the biggest-
+                         drag breakdown card, and a worst-first tables list.
+
+Local vs Snowflake is decided entirely by config.RUN_MODE; nothing in this file
+knows which backend is live.
+"""
+
+from __future__ import annotations
+
+import streamlit as st
+
+import config
+import data
+import theme
+from components import breakdown_card, heatmap, kpi_row, product_list, tables_list
+
+st.set_page_config(page_title="Data Governance Scorecard", page_icon=None, layout="wide")
+theme.apply_theme()
+
+# --------------------------------------------------------------------------- #
+# Navigation state — "products" (page 1) or "tables" (page 2, scoped to a
+# selected product).
+# --------------------------------------------------------------------------- #
+st.session_state.setdefault("page", "products")
+st.session_state.setdefault("product", None)
+
+
+# --------------------------------------------------------------------------- #
+# Sidebar — as-of week + governance knobs (shared by both pages, override
+# config live). Threshold/rollup are passed explicitly into every data.* call
+# so Streamlit's cache invalidates correctly when they change.
+# --------------------------------------------------------------------------- #
+def sidebar() -> dict:
+    with st.sidebar:
+        st.markdown("### Data Governance Scorecard")
+        st.caption(f"Mode: `{config.RUN_MODE}`")
+
+        snaps = data.available_snapshots()
+        labels = {s: s.strftime("%b %d, %Y") for s in snaps}
+        as_of = st.select_slider(
+            "As of (Friday)", options=snaps, value=snaps[-1],
+            format_func=lambda s: labels[s])
+
+        st.divider()
+        st.caption("Scoring")
+        threshold = st.slider("Pass threshold", 40, 95, config.THRESHOLD, 1,
+                              help="Tables at or above this score pass.")
+        rollup = st.selectbox(
+            "Rollup method", ["average", "weighted", "pass_rate"],
+            index=["average", "weighted", "pass_rate"].index(config.ROLLUP_METHOD),
+            help="How table scores roll up to product.")
+
+    return {"as_of": as_of, "threshold": threshold, "rollup": rollup}
+
+
+# --------------------------------------------------------------------------- #
+# Page 1 — Products
+# --------------------------------------------------------------------------- #
+def render_products_page(opts: dict) -> None:
+    as_of, thr, method = opts["as_of"], opts["threshold"], opts["rollup"]
+
+    st.markdown("## All products")
+
+    trend = data.get_trend("products", None, as_of, config.TREND_WEEKS, thr, method)
+    kpi_row.render(data.get_kpis("products", None, as_of, thr, method),
+                   trend_series=trend["score"].tolist())
+    st.write("")
+
+    heat = data.get_heatmap("products", None, as_of, config.HEATMAP_WEEKS, thr, method)
+    heatmap.render(heat, thr, title="Score by product")
+
+    st.write("")
+    children = data.get_children("products", None, as_of, config.HEATMAP_WEEKS, thr, method)
+    selected = product_list.render(children, title="Products")
+
+    if selected is not None:
+        st.session_state.page = "tables"
+        st.session_state.product = selected
+        st.rerun()
+
+
+# --------------------------------------------------------------------------- #
+# Page 2 — Tables in {product}
+# --------------------------------------------------------------------------- #
+def render_tables_page(product: str, opts: dict) -> None:
+    as_of, thr, method = opts["as_of"], opts["threshold"], opts["rollup"]
+
+    if st.button("‹ All products", key="back_to_products", type="tertiary"):
+        st.session_state.page = "products"
+        st.session_state.product = None
+        st.rerun()
+
+    st.markdown(f"## {product}")
+
+    trend = data.get_trend("tables", product, as_of, config.TREND_WEEKS, thr, method)
+    kpi_row.render(data.get_kpis("tables", product, as_of, thr, method),
+                   trend_series=trend["score"].tolist())
+    st.write("")
+
+    breakdown_card.render(data.get_worst_breakdown(product, as_of, thr, method))
+
+    st.write("")
+    heat = data.get_heatmap("tables", product, as_of, config.HEATMAP_WEEKS, thr, method)
+    heatmap.render(heat, thr, title="Score by table")
+
+    st.write("")
+    children = data.get_children("tables", product, as_of, config.HEATMAP_WEEKS, thr, method)
+    tables_list.render(children, title="Tables")
+
+
+def render_header(opts: dict) -> None:
+    meta = (f"As of {opts['as_of'].strftime('%b %d, %Y')} &nbsp;·&nbsp; "
+            f"pass ≥ {opts['threshold']} &nbsp;·&nbsp; {opts['rollup']} rollup")
+    st.markdown(theme.app_header("Data Governance Scorecard", meta),
+               unsafe_allow_html=True)
+
+
+def main() -> None:
+    opts = sidebar()
+    render_header(opts)
+    if st.session_state.page == "tables" and st.session_state.product:
+        render_tables_page(st.session_state.product, opts)
+    else:
+        render_products_page(opts)
+
+
+main()

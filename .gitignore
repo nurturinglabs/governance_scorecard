@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
+# generated synthetic data (regenerate with: python -m synthetic.generate)
+synthetic/*.parquet
