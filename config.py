@@ -52,14 +52,8 @@ COLUMNS = {
     "table": "table_name",
     "table_fqn": "table_fqn",          # stable id: DB.SCHEMA.TABLE
     "snapshot_date": "snapshot_date",
-    "score": "governance_score",       # the composite 0-100
     "owner": "owner",
     "weight": "weight",                # row count / criticality (weighted rollup)
-    # Optional per-dimension component columns (feed the breakdown card).
-    # If these do NOT exist in the real table, set the ones that are missing to
-    # None; data.py degrades the breakdown card gracefully (see COMPONENT_WEIGHTS).
-    "pct_docs": "pct_columns_documented",
-    "freshness_status": "freshness_status",
 }
 
 # --------------------------------------------------------------------------- #
@@ -145,23 +139,35 @@ def is_excluded(table_name: str) -> bool:
 
 
 # --------------------------------------------------------------------------- #
-# Governance dimensions -> max points. Feeds the leaf-level breakdown card.
-# Points across dimensions must sum to 100 so the composite score is explainable
-# as ownership + descriptions + freshness + classification + quality.
+# Score metrics — the fact table tracks several INDEPENDENT weekly scores per
+# table (metadata quality, role/ownership hygiene, activity, ...), not one
+# composite "governance score". The app-wide score selector (top of every page)
+# picks one of these; every KPI, chart, heatmap, and list reads that metric's
+# column. Add a metric here and it appears in the selector automatically — no
+# other code change needed.
 #
-# `column` maps each dimension to its per-dimension points column. If the real
-# table has no component columns, set every `column` to None: data.py then hides
-# the per-dimension bars and the breakdown card falls back to the worst table's
-# trend + raw score. Do NOT invent columns that don't exist.
+# `components` optionally names per-dimension points columns (label, max,
+# column) that explain *why* the worst table scores low on this metric, feeding
+# the leaf breakdown card — the same idea as the old COMPONENT_WEIGHTS, just
+# scoped to one metric. Leave it None until those columns are confirmed in the
+# real table; data.py then degrades the breakdown card to the worst table's own
+# trend instead of inventing a decomposition that doesn't exist.
 # --------------------------------------------------------------------------- #
-COMPONENT_WEIGHTS = [
-    {"key": "ownership",      "label": "Ownership",       "max": 20, "column": "ownership_pts",      "icon": "user"},
-    {"key": "descriptions",   "label": "Descriptions",    "max": 25, "column": "description_pts",    "icon": "file-text"},
-    {"key": "freshness",      "label": "Freshness / SLA", "max": 20, "column": "freshness_pts",      "icon": "clock"},
-    {"key": "classification", "label": "Classification",  "max": 15, "column": "classification_pts", "icon": "shield"},
-    {"key": "quality",        "label": "Quality tests",   "max": 20, "column": "quality_pts",        "icon": "check"},
+SCORE_METRICS = [
+    {"key": "metadata", "label": "Metadata score", "column": "metadata_score", "components": None},
+    {"key": "role",     "label": "Role score",     "column": "role_score",     "components": None},
+    {"key": "act",      "label": "Activity score", "column": "act_score",     "components": None},
 ]
-assert sum(c["max"] for c in COMPONENT_WEIGHTS) == 100, "component maxes must sum to 100"
+DEFAULT_SCORE_METRIC = SCORE_METRICS[0]["key"]
+
+
+def score_metric(key: str | None) -> dict:
+    """Look up a SCORE_METRICS entry by key; falls back to the default metric
+    for None/unknown keys so callers never have to null-check."""
+    for m in SCORE_METRICS:
+        if m["key"] == key:
+            return m
+    return score_metric(DEFAULT_SCORE_METRIC) if key != DEFAULT_SCORE_METRIC else SCORE_METRICS[0]
 
 # --------------------------------------------------------------------------- #
 # Trend windows

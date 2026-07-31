@@ -11,8 +11,10 @@ heatmap, breakdown — is backend-agnostic and lives here, so the two modes can
 never disagree. Components and app.py call these functions and never touch SQL,
 a Snowpark session, or a raw column name.
 
-Threshold and rollup method are explicit arguments (defaulting to config) so the
-cache key reflects them and sidebar overrides invalidate cleanly.
+The fact carries several INDEPENDENT weekly score metrics (config.SCORE_METRICS),
+not one composite. Every public function takes an explicit `metric` argument
+(the SCORE_METRICS key) alongside threshold/rollup — all three default to config
+so the cache key reflects them and the page-level selector invalidates cleanly.
 """
 
 from __future__ import annotations
@@ -25,7 +27,7 @@ import config
 
 C = config.COLUMNS
 PRODUCT, DB, SCHEMA, TABLE = C["data_product"], C["database"], C["schema"], C["table"]
-FQN, SNAP, SCORE = C["table_fqn"], C["snapshot_date"], C["score"]
+FQN, SNAP = C["table_fqn"], C["snapshot_date"]
 OWNER, WEIGHT = C["owner"], C["weight"]
 
 # Streamlit caching, but degrade to a no-op when run outside a Streamlit runtime
@@ -66,10 +68,13 @@ def _as_ts(as_of) -> pd.Timestamp:
     return pd.Timestamp(as_of).normalize()
 
 
-def _component_columns() -> list[dict]:
-    """Component-weight entries whose points column actually exists in the fact."""
+def _component_columns(metric: str) -> list[dict]:
+    """This metric's configured component entries whose column actually exists
+    in the fact. Empty (not an error) until real per-dimension columns are
+    confirmed — callers degrade gracefully rather than invent a breakdown."""
+    comps = config.score_metric(metric).get("components") or []
     cols = set(_load_raw().columns)
-    return [c for c in config.COMPONENT_WEIGHTS if c["column"] and c["column"] in cols]
+    return [c for c in comps if c.get("column") and c["column"] in cols]
 
 
 # --------------------------------------------------------------------------- #
@@ -83,7 +88,8 @@ def _scope(df: pd.DataFrame, level: str, parent_id) -> pd.DataFrame:
     raise ValueError(f"unknown level: {level}")
 
 
-def _rollup(df: pd.DataFrame, keys: list[str], threshold: int, method: str) -> pd.DataFrame:
+def _rollup(df: pd.DataFrame, keys: list[str], threshold: int, method: str,
+           score_col: str) -> pd.DataFrame:
     """Aggregate table-grain scores to `keys` grain per ROLLUP_METHOD.
 
     Returns keys + [score, n_tables, n_below]. Works at any grain, including the
@@ -91,13 +97,13 @@ def _rollup(df: pd.DataFrame, keys: list[str], threshold: int, method: str) -> p
     """
     if df.empty:
         return pd.DataFrame(columns=keys + ["score", "n_tables", "n_below"])
-    tmp = df[keys + [SCORE, WEIGHT]].copy()
-    tmp["_below"] = (tmp[SCORE] < threshold).astype(int)
-    tmp["_sw"] = tmp[SCORE] * tmp[WEIGHT]
+    tmp = df[keys + [score_col, WEIGHT]].copy()
+    tmp["_below"] = (tmp[score_col] < threshold).astype(int)
+    tmp["_sw"] = tmp[score_col] * tmp[WEIGHT]
     g = tmp.groupby(keys, as_index=False, dropna=False).agg(
-        n_tables=(SCORE, "size"),
+        n_tables=(score_col, "size"),
         n_below=("_below", "sum"),
-        _sum=(SCORE, "sum"),
+        _sum=(score_col, "sum"),
         _sumsw=("_sw", "sum"),
         _sumw=(WEIGHT, "sum"),
     )
@@ -111,9 +117,10 @@ def _rollup(df: pd.DataFrame, keys: list[str], threshold: int, method: str) -> p
     return g[keys + ["score", "n_tables", "n_below"]]
 
 
-def _defaults(threshold, method):
+def _defaults(threshold, method, metric):
     return (config.THRESHOLD if threshold is None else int(threshold),
-            config.ROLLUP_METHOD if method is None else method)
+            config.ROLLUP_METHOD if method is None else method,
+            config.DEFAULT_SCORE_METRIC if metric is None else metric)
 
 
 # --------------------------------------------------------------------------- #
@@ -139,21 +146,22 @@ def get_scope() -> pd.DataFrame:
 
 @_cache
 def get_trend(level: str, parent_id, as_of, weeks: int = None,
-              threshold: int = None, method: str = None) -> pd.DataFrame:
+              threshold: int = None, method: str = None, metric: str = None) -> pd.DataFrame:
     """Focus-entity score per week, up to as_of. Columns: snapshot_date, score."""
     weeks = weeks or config.TREND_WEEKS
-    thr, method = _defaults(threshold, method)
+    thr, method, metric = _defaults(threshold, method, metric)
+    score_col = config.score_metric(metric)["column"]
     sc = _scope(_fact(), level, parent_id)
-    r = _rollup(sc, [SNAP], thr, method).sort_values(SNAP)
+    r = _rollup(sc, [SNAP], thr, method, score_col).sort_values(SNAP)
     r = r[r[SNAP] <= _as_ts(as_of)].tail(weeks)
     return r[[SNAP, "score"]].reset_index(drop=True)
 
 
-def _child_weekly(level: str, parent_id, as_of, weeks: int, thr: int, method: str):
+def _child_weekly(level: str, parent_id, as_of, weeks: int, thr: int, method: str, score_col: str):
     """Per-child weekly rollup within the window. Returns (df, child_col, dates)."""
     child_col = config.LEVELS[level]["grain_col"]
     sc = _scope(_fact(), level, parent_id)
-    wk = _rollup(sc, [child_col, SNAP], thr, method)
+    wk = _rollup(sc, [child_col, SNAP], thr, method, score_col)
     dates = sorted(d for d in wk[SNAP].unique() if d <= _as_ts(as_of))[-weeks:]
     wk = wk[wk[SNAP].isin(dates)]
     return wk, child_col, dates
@@ -161,11 +169,12 @@ def _child_weekly(level: str, parent_id, as_of, weeks: int, thr: int, method: st
 
 @_cache
 def get_heatmap(level: str, parent_id, as_of, weeks: int = None,
-                threshold: int = None, method: str = None) -> dict:
+                threshold: int = None, method: str = None, metric: str = None) -> dict:
     """Long-form entity x week scores + a y-axis order (worst-latest sorting)."""
     weeks = weeks or config.HEATMAP_WEEKS
-    thr, method = _defaults(threshold, method)
-    wk, child_col, dates = _child_weekly(level, parent_id, as_of, weeks, thr, method)
+    thr, method, metric = _defaults(threshold, method, metric)
+    score_col = config.score_metric(metric)["column"]
+    wk, child_col, dates = _child_weekly(level, parent_id, as_of, weeks, thr, method, score_col)
     if wk.empty:
         return {"data": pd.DataFrame(columns=["entity", "label", SNAP, "score"]),
                 "order": [], "dates": []}
@@ -187,13 +196,14 @@ def _labels(level: str, entities) -> dict:
 
 @_cache
 def get_children(level: str, parent_id, as_of, weeks: int = None,
-                 threshold: int = None, method: str = None) -> pd.DataFrame:
+                 threshold: int = None, method: str = None, metric: str = None) -> pd.DataFrame:
     """One row per child entity: current score, WoW, sparkline series, counts,
     and (leaf only) owner / top gap. Sorted worst-first at the leaf, best-first
     above it."""
     weeks = weeks or config.HEATMAP_WEEKS
-    thr, method = _defaults(threshold, method)
-    wk, child_col, dates = _child_weekly(level, parent_id, as_of, weeks, thr, method)
+    thr, method, metric = _defaults(threshold, method, metric)
+    score_col = config.score_metric(metric)["column"]
+    wk, child_col, dates = _child_weekly(level, parent_id, as_of, weeks, thr, method, score_col)
     labels = _labels(level, wk[child_col].unique()) if not wk.empty else {}
     latest = _as_ts(as_of)
     prev = dates[-2] if len(dates) >= 2 else None
@@ -222,18 +232,18 @@ def get_children(level: str, parent_id, as_of, weeks: int = None,
 
     out = pd.DataFrame(rows)
     if level == "tables":
-        out = _attach_leaf_detail(out, parent_id, latest)
+        out = _attach_leaf_detail(out, parent_id, latest, metric)
         out = out.sort_values("score", na_position="last").reset_index(drop=True)
     else:
         out = out.sort_values("score", ascending=False, na_position="last").reset_index(drop=True)
     return out
 
 
-def _attach_leaf_detail(out: pd.DataFrame, product_id, as_of) -> pd.DataFrame:
-    """Add owner, pct docs, freshness, and a short 'top gap' string per table."""
+def _attach_leaf_detail(out: pd.DataFrame, product_id, as_of, metric: str) -> pd.DataFrame:
+    """Add owner and a short 'top gap' string per table, for the given metric."""
     f = _fact()
     snap = f[(f[PRODUCT] == product_id) & (f[SNAP] == as_of)].set_index(FQN)
-    comps = _component_columns()
+    comps = _component_columns(metric)
     owners, gaps = [], []
     for ent in out["entity"]:
         if ent in snap.index:
@@ -249,47 +259,39 @@ def _attach_leaf_detail(out: pd.DataFrame, product_id, as_of) -> pd.DataFrame:
 
 
 def _top_gap(row, comps: list[dict]) -> str:
-    """Human 'top gap' from the two weakest components / obvious flags."""
+    """Human 'top gap' from missing ownership / the weakest configured
+    components (empty until real per-dimension columns are confirmed)."""
     flags = []
     if OWNER in row.index and pd.isna(row.get(OWNER)):
         flags.append("no owner")
-    ratios = []
-    for c in comps:
-        if c["key"] == "ownership":
-            continue
-        ratios.append((c, row[c["column"]] / c["max"]))
-    ratios.sort(key=lambda x: x[1])
-    for c, r in ratios[:2]:
-        if r >= 0.75:
+    ratios = sorted(((c, row[c["column"]] / c["max"]) for c in comps), key=lambda x: x[1])
+    for c, r in ratios:
+        if r >= 0.75 or len(flags) >= 2:
             break
-        if c["key"] == "descriptions" and C["pct_docs"] in row.index and not pd.isna(row[C["pct_docs"]]):
-            flags.append(f"{int(row[C['pct_docs']])}% docs")
-        else:
-            flags.append(f"low {c['label'].lower()}")
-        if len(flags) >= 2:
-            break
+        flags.append(f"low {c['label'].lower()}")
     return " · ".join(flags[:2]) if flags else "—"
 
 
 @_cache
 def get_kpis(level: str, parent_id, as_of, threshold: int = None,
-             method: str = None) -> list[dict]:
+             method: str = None, metric: str = None) -> list[dict]:
     """Four KPI cards for the level. Each: label, value, delta, inverse, sub."""
-    thr, method = _defaults(threshold, method)
+    thr, method, metric = _defaults(threshold, method, metric)
+    score_col = config.score_metric(metric)["column"]
     sc = _scope(_fact(), level, parent_id)
     latest = _as_ts(as_of)
     dates = sorted(d for d in sc[SNAP].unique() if d <= latest)
     prev = dates[-2] if len(dates) >= 2 else None
 
-    trend = _rollup(sc, [SNAP], thr, method)
+    trend = _rollup(sc, [SNAP], thr, method, score_col)
     cur = _pick(trend, latest)
     prv = _pick(trend, prev)
     snap_now = sc[sc[SNAP] == latest]
     snap_prev = sc[sc[SNAP] == prev] if prev is not None else snap_now.iloc[0:0]
-    below_now = int((snap_now[SCORE] < thr).sum())
-    below_prev = int((snap_prev[SCORE] < thr).sum()) if not snap_prev.empty else None
+    below_now = int((snap_now[score_col] < thr).sum())
+    below_prev = int((snap_prev[score_col] < thr).sum()) if not snap_prev.empty else None
 
-    score_card = {"label": _score_label(level), "value": _int(cur),
+    score_card = {"label": config.score_metric(metric)["label"], "value": _int(cur),
                   "delta": _sub(cur, prv), "inverse": False, "sub": None}
     below_card = {"label": f"Below threshold <{thr}", "value": below_now,
                   "delta": _sub(below_now, below_prev), "inverse": True, "sub": None}
@@ -303,7 +305,7 @@ def get_kpis(level: str, parent_id, as_of, threshold: int = None,
                  "delta": None, "inverse": False, "sub": "scored"},
                 below_card]
     # tables (product-scoped leaf list)
-    weak = _weakest_dimension(snap_now)
+    weak = _weakest_dimension(snap_now, metric)
     return [score_card,
             {"label": "Tables", "value": int(len(snap_now)),
              "delta": None, "inverse": False, "sub": "in this product"},
@@ -312,8 +314,8 @@ def get_kpis(level: str, parent_id, as_of, threshold: int = None,
              "delta": None, "inverse": False, "sub": weak["sub"]}]
 
 
-def _weakest_dimension(snap: pd.DataFrame) -> dict:
-    comps = _component_columns()
+def _weakest_dimension(snap: pd.DataFrame, metric: str) -> dict:
+    comps = _component_columns(metric)
     if snap.empty or not comps:
         return {"label": "—", "sub": None}
     worst, worst_ratio = None, 2.0
@@ -321,29 +323,28 @@ def _weakest_dimension(snap: pd.DataFrame) -> dict:
         ratio = (snap[c["column"]] / c["max"]).mean()
         if ratio < worst_ratio:
             worst_ratio, worst = ratio, c
-    sub = f"avg {round(worst_ratio * 100)}%"
-    if worst["key"] == "descriptions" and C["pct_docs"] in snap.columns:
-        sub = f"avg {round(snap[C['pct_docs']].mean())}% documented"
-    return {"label": worst["label"], "sub": sub}
+    return {"label": worst["label"], "sub": f"avg {round(worst_ratio * 100)}%"}
 
 
 @_cache
 def get_worst_breakdown(product_id, as_of, threshold: int = None,
-                        method: str = None) -> dict:
-    """Worst scored table in a product + its component breakdown (leaf card)."""
-    thr, _ = _defaults(threshold, None)
+                        method: str = None, metric: str = None) -> dict:
+    """Worst scored table in a product on the selected metric, + its component
+    breakdown (leaf card)."""
+    thr, _, metric = _defaults(threshold, None, metric)
+    score_col = config.score_metric(metric)["column"]
     f = _fact()
     latest = _as_ts(as_of)
     snap = f[(f[PRODUCT] == product_id) & (f[SNAP] == latest)]
     if snap.empty:
         return {"found": False}
-    row = snap.sort_values(SCORE).iloc[0]
-    comps = _component_columns()
+    row = snap.sort_values(score_col).iloc[0]
+    comps = _component_columns(metric)
     result = {
         "found": True,
         "fqn": row[FQN],
         "label": str(row[FQN]).split(".")[-1],
-        "score": int(row[SCORE]),
+        "score": int(row[score_col]),
         "owner": None if pd.isna(row.get(OWNER)) else str(row.get(OWNER)),
         "threshold": thr,
         "has_components": bool(comps),
@@ -351,12 +352,12 @@ def get_worst_breakdown(product_id, as_of, threshold: int = None,
     if comps:
         result["components"] = [
             {"label": c["label"], "pts": int(row[c["column"]]), "max": c["max"],
-             "ratio": float(row[c["column"]]) / c["max"], "icon": c["icon"]}
+             "ratio": float(row[c["column"]]) / c["max"], "icon": c.get("icon")}
             for c in comps
         ]
-    else:  # graceful fallback: worst table trend
+    else:  # graceful fallback: worst table trend (no confirmed component columns)
         hist = (f[f[FQN] == row[FQN]].sort_values(SNAP).tail(config.HEATMAP_WEEKS))
-        result["series"] = [round(float(s)) for s in hist[SCORE].tolist()]
+        result["series"] = [round(float(s)) for s in hist[score_col].tolist()]
     return result
 
 
@@ -378,7 +379,3 @@ def _sub(a, b):
 
 def _int(x):
     return None if x is None else round(x)
-
-
-def _score_label(level: str) -> str:
-    return {"products": "Portfolio score", "tables": "Product score"}[level]

@@ -1,10 +1,11 @@
 """
 smoke_test.py — fast, browser-free verification that the app works.
 
-Runs the data layer across both levels (products -> tables) and executes the
-whole app headlessly via Streamlit's AppTest harness: page 1 (products), drill
-into a product via session state, page 2 (tables) with the breakdown card,
-and the sidebar threshold/rollup controls. Exits non-zero on any failure.
+Runs the data layer across both levels (products -> tables) and both score
+metrics, then executes the whole app headlessly via Streamlit's AppTest
+harness: page 1 (products), the score-metric selector, drill into a product
+via session state, page 2 (tables) with the breakdown card, and the sidebar
+threshold/rollup controls. Exits non-zero on any failure.
 
     python smoke_test.py
 """
@@ -20,28 +21,39 @@ warnings.filterwarnings("ignore")
 
 
 def _data_layer() -> None:
+    import config
     import data
     aof = data.latest_snapshot()
     assert len(data.available_snapshots()) >= 2
-    kpis = data.get_kpis("products", None, aof)
-    assert len(kpis) == 4
 
-    ch = data.get_children("products", None, aof)
-    assert not ch.empty and {"entity", "score", "wow", "series"} <= set(ch.columns)
-    prod = ch.iloc[-1]["entity"]
+    metrics = [m["key"] for m in config.SCORE_METRICS]
+    assert len(metrics) >= 2, "expected multiple configurable score metrics"
 
-    tch = data.get_children("tables", prod, aof)
+    for metric in metrics:
+        kpis = data.get_kpis("products", None, aof, metric=metric)
+        assert len(kpis) == 4
+        ch = data.get_children("products", None, aof, metric=metric)
+        assert not ch.empty and {"entity", "score", "wow", "series"} <= set(ch.columns)
+
+    prod = data.get_children("products", None, aof, metric=metrics[0]).iloc[-1]["entity"]
+    tch = data.get_children("tables", prod, aof, metric=metrics[0])
     assert not tch.empty
     assert {"owner", "top_gap"} <= set(tch.columns)
 
-    bd = data.get_worst_breakdown(prod, aof)
+    bd = data.get_worst_breakdown(prod, aof, metric=metrics[0])
     assert bd["found"]
 
-    # rollup methods must differ
-    scores = {m: data.get_trend("products", None, aof, method=m)["score"].iloc[-1]
-              for m in ("average", "weighted", "pass_rate")}
-    assert len(set(round(v) for v in scores.values())) >= 2, scores
-    print(f"  data layer ok — rollup scores {({k: round(v) for k, v in scores.items()})}")
+    # switching metric must actually change the numbers (independent columns)
+    scores_by_metric = {m: data.get_trend("products", None, aof, metric=m)["score"].iloc[-1]
+                        for m in metrics}
+    assert len(set(round(v) for v in scores_by_metric.values())) >= 2, scores_by_metric
+
+    # rollup methods must differ (within one metric)
+    scores_by_method = {m: data.get_trend("products", None, aof, method=m)["score"].iloc[-1]
+                        for m in ("average", "weighted", "pass_rate")}
+    assert len(set(round(v) for v in scores_by_method.values())) >= 2, scores_by_method
+    print(f"  data layer ok — {len(metrics)} score metrics, "
+          f"rollup scores {({k: round(v) for k, v in scores_by_method.items()})}")
 
 
 def _app() -> None:
@@ -53,8 +65,16 @@ def _app() -> None:
     md = "\n".join(m.value for m in at.markdown)
     assert "gov-kpis" in md, "KPI cards missing"
     assert "gov-row" in md, "product rows missing"
+    assert len(at.segmented_control) == 1, "score-metric selector missing"
     assert len(at.button) >= 1, "no drill buttons rendered"
-    print(f"  products page ok — {len(at.button)} drill buttons")
+    print(f"  products page ok — {len(at.button)} drill buttons, score selector present")
+
+    # Switch the score metric and confirm the page re-renders without error.
+    at.segmented_control[0].set_value("Role score").run()
+    assert not at.exception, at.exception
+    md = "\n".join(m.value for m in at.markdown)
+    assert "Role score" in md, "KPI card did not switch to the selected metric"
+    print("  score-metric switch ok — KPI/heatmap follow the selector")
 
     # Drill into a product via session state (mirrors clicking "View tables →").
     at.session_state["page"] = "tables"

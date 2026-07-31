@@ -63,12 +63,16 @@ governance_scorecard/
 - `THRESHOLD` — pass/fail line; read everywhere (KPIs, pass_rate, below counts).
 - `ROLLUP_METHOD` — `average` | `weighted` | `pass_rate`; changes what the trend
   line *means*. Overridable live from the sidebar.
+- `SCORE_METRICS` — the independent weekly scores the fact tracks (metadata,
+  role, activity, …) — there is no single composite. Each entry is `{key,
+  label, column, components}`; add one and it appears in the top-of-page score
+  selector automatically. `components` optionally names per-dimension points
+  columns that explain the leaf breakdown card's worst-table decomposition —
+  leave `None` until those columns are confirmed and the card degrades to the
+  worst table's own trend.
 - `SCORE_BANDS` — score→color; single source for heatmap, KPIs, breakdown bars.
 - `SCOPE_EXCLUDE` — staging/temp/backup tables excluded from scoring so they don't
   drag a governed database down. Visible and configurable, never silent.
-- `COMPONENT_WEIGHTS` — governance dimensions and max points (must sum to 100);
-  feed the leaf breakdown card. Set a dimension's `column` to `None` if the real
-  table lacks it and the card degrades gracefully.
 - `COLUMNS` — logical→physical column map; adapting to the real schema is an edit
   here, not a code change.
 
@@ -77,9 +81,11 @@ governance_scorecard/
 1. `config.SNOWFLAKE["history_table"]` — the real history table name.
 2. `config.COLUMNS` — physical column names (grain assumed: one row per table per
    weekly `snapshot_date`).
-3. `ROLLUP_METHOD` — which rollup the governance team wants.
-4. Whether per-dimension component columns exist for the breakdown card; if not,
-   set those `COMPONENT_WEIGHTS[*]["column"]` to `None`.
+3. `config.SCORE_METRICS` — the real score columns (metadata/role/activity/etc.)
+   and their labels; the selector at the top of the page lists exactly these.
+4. `ROLLUP_METHOD` — which rollup the governance team wants.
+5. Whether per-dimension component columns exist for each metric's breakdown
+   card; if not, leave that metric's `components` as `None`.
 
 ### Notes
 

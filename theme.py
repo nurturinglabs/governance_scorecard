@@ -53,14 +53,21 @@ _CSS = f"""
   .gov-mono{{font-family:{FONT_MONO};}}
 
   /* app header — top-of-page brand bar, shown on every page */
-  .gov-appheader{{background:{NAVY};display:flex;align-items:center;justify-content:space-between;
-                 padding:.85rem 1.3rem;margin-bottom:1.2rem;border-radius:10px;}}
-  .gov-appheader .brand{{display:flex;align-items:center;gap:9px;}}
-  .gov-appheader .brand i{{width:10px;height:10px;border-radius:2px;background:{GOLD};
-                          display:inline-block;flex:none;}}
-  .gov-appheader .brand h1{{font-family:{FONT_HEADING};font-size:21px;font-weight:600;
-                            color:{GOLD};margin:0;letter-spacing:.3px;}}
-  .gov-appheader .meta{{font-size:12px;color:{GOLD};opacity:.85;text-align:right;}}
+  .gov-appheader{{background:linear-gradient(135deg,{NAVY} 0%,#012347 100%);
+                 display:flex;align-items:center;justify-content:space-between;
+                 padding:1rem 1.4rem;margin-bottom:1.3rem;border-radius:14px;
+                 box-shadow:0 6px 18px rgba(0,25,51,.22);}}
+  .gov-appheader .brand{{display:flex;align-items:center;gap:13px;}}
+  .gov-appheader .brand-mark{{width:38px;height:38px;border-radius:10px;flex:none;
+                              background:rgba(255,181,0,.14);border:1px solid rgba(255,181,0,.35);
+                              display:flex;align-items:center;justify-content:center;color:{GOLD};}}
+  .gov-appheader h1{{font-family:{FONT_HEADING};font-size:21px;font-weight:600;
+                     color:{GOLD};margin:0;letter-spacing:.3px;line-height:1.25;}}
+  .gov-appheader .tagline{{font-size:11.5px;color:rgba(255,255,255,.65);margin-top:1px;letter-spacing:.15px;}}
+  .gov-appheader .badges{{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;}}
+  .gov-appheader .badge{{font-size:11.5px;font-weight:500;color:{GOLD};background:rgba(255,181,0,.12);
+                        border:1px solid rgba(255,181,0,.28);padding:4px 11px;border-radius:999px;
+                        white-space:nowrap;}}
 
   /* section header row */
   .gov-section{{display:flex;align-items:baseline;justify-content:space-between;
@@ -79,13 +86,24 @@ _CSS = f"""
   }}
 
   /* KPI cards */
-  .gov-kpis{{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:.5rem 0 1rem;}}
-  .gov-kpi{{background:{PAGE_BG};border:1px solid {CARD_BORDER};border-radius:12px;padding:.85rem 1rem;}}
-  .gov-kpi-l{{font-size:12px;color:{TEXT_SECONDARY};}}
-  .gov-kpi-v{{font-size:26px;font-weight:600;line-height:1.25;color:{TEXT_PRIMARY};}}
-  .gov-kpi-d{{font-size:12px;margin-top:2px;}}
-  .gov-kpi-d.up{{color:{UP};}} .gov-kpi-d.down{{color:{DOWN};}}
-  .gov-kpi-sub{{font-size:12px;color:{TEXT_MUTED};margin-top:2px;}}
+  .gov-kpis{{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:.5rem 0 1.1rem;}}
+  .gov-kpi{{background:{PAGE_BG};border:1px solid {CARD_BORDER};border-radius:14px;
+           padding:1rem 1.1rem .95rem;position:relative;overflow:hidden;
+           box-shadow:0 1px 2px rgba(16,24,40,.04);
+           transition:box-shadow .15s ease,transform .15s ease;}}
+  .gov-kpi:hover{{box-shadow:0 8px 20px rgba(16,24,40,.09);transform:translateY(-1px);}}
+  .gov-kpi .accent{{position:absolute;top:0;left:0;right:0;height:3px;}}
+  .gov-kpi-head{{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:.6rem;}}
+  .gov-kpi-icon{{width:26px;height:26px;border-radius:8px;background:{SUBTLE_FILL};flex:none;
+                color:{NAVY};display:flex;align-items:center;justify-content:center;}}
+  .gov-kpi-l{{font-size:11.5px;font-weight:500;color:{TEXT_SECONDARY};
+             text-transform:uppercase;letter-spacing:.4px;}}
+  .gov-kpi-v{{font-size:28px;font-weight:700;line-height:1.2;color:{TEXT_PRIMARY};}}
+  .gov-kpi-d{{display:inline-flex;align-items:center;gap:3px;font-size:11.5px;font-weight:600;
+             padding:2px 9px;border-radius:999px;margin-top:.55rem;}}
+  .gov-kpi-d.up{{color:{UP};background:rgba(29,158,117,.12);}}
+  .gov-kpi-d.down{{color:{DOWN};background:rgba(216,90,48,.12);}}
+  .gov-kpi-sub{{font-size:12px;color:{TEXT_MUTED};margin-top:.45rem;}}
 
   /* heatmap grid */
   .gov-hm{{display:grid;gap:2px;align-items:center;justify-content:start;}}
@@ -94,7 +112,7 @@ _CSS = f"""
   .gov-hm-row{{font-size:11px;color:#3a4453;white-space:nowrap;overflow:hidden;
               text-overflow:ellipsis;padding-right:6px;}}
   .gov-hm-cell{{height:24px;width:100%;border-radius:3px;display:flex;align-items:center;
-               justify-content:center;font-size:9px;}}
+               justify-content:center;font-size:11px;font-weight:700;}}
   .gov-hm-cell.gap{{background:repeating-linear-gradient(45deg,#eef1f5,#eef1f5 4px,#f7f9fc 4px,#f7f9fc 8px);}}
   .gov-hm-legend{{display:flex;gap:12px;margin:2px 0 8px;font-size:11px;color:{TEXT_SECONDARY};}}
   .gov-hm-legend i{{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:4px;vertical-align:-1px;}}
@@ -125,6 +143,35 @@ _CSS = f"""
   div[data-testid="stButton"] button[kind="tertiary"]{{color:{NAVY};}}
 </style>
 """
+
+
+_ICON_GAUGE = ("<svg viewBox='0 0 24 24' width='14' height='14' fill='none' stroke='currentColor' "
+              "stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
+              "<path d='M4 12a8 8 0 0 1 16 0'/><path d='M12 12 16 8'/></svg>")
+_ICON_ALERT = ("<svg viewBox='0 0 24 24' width='14' height='14' fill='none' stroke='currentColor' "
+              "stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
+              "<path d='M12 3 2 20h20L12 3Z'/><path d='M12 10v4'/><path d='M12 17h.01'/></svg>")
+_ICON_BARS = ("<svg viewBox='0 0 24 24' width='14' height='14' fill='none' stroke='currentColor' "
+             "stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
+             "<path d='M4 20V10'/><path d='M12 20V4'/><path d='M20 20v-6'/></svg>")
+_ICON_LAYERS = ("<svg viewBox='0 0 24 24' width='14' height='14' fill='none' stroke='currentColor' "
+               "stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
+               "<path d='M12 3 2 8l10 5 10-5-10-5Z'/><path d='m2 13 10 5 10-5'/></svg>")
+_ICON_SHIELD = ("<svg viewBox='0 0 24 24' width='20' height='20' fill='none' stroke='currentColor' "
+               "stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'>"
+               "<path d='M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z'/><path d='m9 12 2 2 4-4'/></svg>")
+
+
+def kpi_icon(label: str) -> str:
+    """Small glyph matched by keyword so it stays correct regardless of card order."""
+    l = label.lower()
+    if "score" in l:
+        return _ICON_GAUGE
+    if "below threshold" in l:
+        return _ICON_ALERT
+    if "weakest" in l:
+        return _ICON_BARS
+    return _ICON_LAYERS
 
 
 def apply_theme() -> None:
@@ -192,11 +239,16 @@ def section_header(title: str, meta: str | None = None) -> str:
     return f"<div class='gov-section'><span class='t'>{title}</span>{meta_html}</div>"
 
 
-def app_header(title: str, meta: str | None = None) -> str:
-    """Top-of-page brand bar: gold accent mark + app title, right-aligned meta
-    (as-of date / threshold / rollup context). Shown once, above every page."""
-    meta_html = f"<span class='meta'>{meta}</span>" if meta else ""
+def app_header(title: str, tagline: str | None = None, badges: list[str] | None = None) -> str:
+    """Top-of-page brand bar: shield mark + title/tagline, right-aligned pill
+    badges (as-of date / threshold / rollup context). Shown once, above every page."""
+    tagline_html = f"<div class='tagline'>{tagline}</div>" if tagline else ""
+    badges_html = "".join(f"<span class='badge'>{b}</span>" for b in (badges or []))
     return (
         "<div class='gov-appheader'>"
-        f"<div class='brand'><i></i><h1>{title}</h1></div>"
-        f"{meta_html}</div>")
+        "<div class='brand'>"
+        f"<div class='brand-mark'>{_ICON_SHIELD}</div>"
+        f"<div><h1>{title}</h1>{tagline_html}</div>"
+        "</div>"
+        f"<div class='badges'>{badges_html}</div>"
+        "</div>")

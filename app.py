@@ -62,23 +62,40 @@ def sidebar() -> dict:
 
 
 # --------------------------------------------------------------------------- #
+# Score-metric selector — prominent, top of page, shared by both pages. Every
+# KPI, chart, heatmap, and list on the page reads whichever metric is picked
+# here (config.SCORE_METRICS), so it lives above the page content, not tucked
+# in the sidebar.
+# --------------------------------------------------------------------------- #
+def metric_selector() -> str:
+    labels = [m["label"] for m in config.SCORE_METRICS]
+    label_to_key = {m["label"]: m["key"] for m in config.SCORE_METRICS}
+    default_label = config.score_metric(config.DEFAULT_SCORE_METRIC)["label"]
+    chosen = st.segmented_control(
+        "Viewing score", options=labels, default=default_label,
+        required=True, key="score_metric_label")
+    return label_to_key.get(chosen, config.DEFAULT_SCORE_METRIC)
+
+
+# --------------------------------------------------------------------------- #
 # Page 1 — Products
 # --------------------------------------------------------------------------- #
 def render_products_page(opts: dict) -> None:
-    as_of, thr, method = opts["as_of"], opts["threshold"], opts["rollup"]
+    as_of, thr, method, metric = opts["as_of"], opts["threshold"], opts["rollup"], opts["metric"]
+    metric_label = config.score_metric(metric)["label"]
 
     st.markdown("## All products")
 
-    trend = data.get_trend("products", None, as_of, config.TREND_WEEKS, thr, method)
-    kpi_row.render(data.get_kpis("products", None, as_of, thr, method),
+    trend = data.get_trend("products", None, as_of, config.TREND_WEEKS, thr, method, metric)
+    kpi_row.render(data.get_kpis("products", None, as_of, thr, method, metric),
                    trend_series=trend["score"].tolist())
     st.write("")
 
-    heat = data.get_heatmap("products", None, as_of, config.HEATMAP_WEEKS, thr, method)
-    heatmap.render(heat, thr, title="Score by product")
+    heat = data.get_heatmap("products", None, as_of, config.HEATMAP_WEEKS, thr, method, metric)
+    heatmap.render(heat, thr, title=f"{metric_label} by product")
 
     st.write("")
-    children = data.get_children("products", None, as_of, config.HEATMAP_WEEKS, thr, method)
+    children = data.get_children("products", None, as_of, config.HEATMAP_WEEKS, thr, method, metric)
     selected = product_list.render(children, title="Products")
 
     if selected is not None:
@@ -91,7 +108,8 @@ def render_products_page(opts: dict) -> None:
 # Page 2 — Tables in {product}
 # --------------------------------------------------------------------------- #
 def render_tables_page(product: str, opts: dict) -> None:
-    as_of, thr, method = opts["as_of"], opts["threshold"], opts["rollup"]
+    as_of, thr, method, metric = opts["as_of"], opts["threshold"], opts["rollup"], opts["metric"]
+    metric_label = config.score_metric(metric)["label"]
 
     if st.button("‹ All products", key="back_to_products", type="tertiary"):
         st.session_state.page = "products"
@@ -100,32 +118,39 @@ def render_tables_page(product: str, opts: dict) -> None:
 
     st.markdown(f"## {product}")
 
-    trend = data.get_trend("tables", product, as_of, config.TREND_WEEKS, thr, method)
-    kpi_row.render(data.get_kpis("tables", product, as_of, thr, method),
+    trend = data.get_trend("tables", product, as_of, config.TREND_WEEKS, thr, method, metric)
+    kpi_row.render(data.get_kpis("tables", product, as_of, thr, method, metric),
                    trend_series=trend["score"].tolist())
     st.write("")
 
-    breakdown_card.render(data.get_worst_breakdown(product, as_of, thr, method))
+    breakdown_card.render(data.get_worst_breakdown(product, as_of, thr, method, metric))
 
     st.write("")
-    heat = data.get_heatmap("tables", product, as_of, config.HEATMAP_WEEKS, thr, method)
-    heatmap.render(heat, thr, title="Score by table")
+    heat = data.get_heatmap("tables", product, as_of, config.HEATMAP_WEEKS, thr, method, metric)
+    heatmap.render(heat, thr, title=f"{metric_label} by table")
 
     st.write("")
-    children = data.get_children("tables", product, as_of, config.HEATMAP_WEEKS, thr, method)
+    children = data.get_children("tables", product, as_of, config.HEATMAP_WEEKS, thr, method, metric)
     tables_list.render(children, title="Tables")
 
 
 def render_header(opts: dict) -> None:
-    meta = (f"As of {opts['as_of'].strftime('%b %d, %Y')} &nbsp;·&nbsp; "
-            f"pass ≥ {opts['threshold']} &nbsp;·&nbsp; {opts['rollup']} rollup")
-    st.markdown(theme.app_header("Data Governance Scorecard", meta),
-               unsafe_allow_html=True)
+    badges = [
+        f"As of {opts['as_of'].strftime('%b %d, %Y')}",
+        f"Pass ≥ {opts['threshold']}",
+        f"{opts['rollup'].replace('_', ' ').capitalize()} rollup",
+    ]
+    st.markdown(
+        theme.app_header("Data Governance Scorecard",
+                         tagline="Weekly quality & ownership tracking",
+                         badges=badges),
+        unsafe_allow_html=True)
 
 
 def main() -> None:
     opts = sidebar()
     render_header(opts)
+    opts["metric"] = metric_selector()
     if st.session_state.page == "tables" and st.session_state.product:
         render_tables_page(st.session_state.product, opts)
     else:

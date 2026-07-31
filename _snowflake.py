@@ -35,16 +35,14 @@ def _select_sql() -> str:
         (C["table"], C["table"]),
         (C["table_fqn"], C["table_fqn"]),
         (C["snapshot_date"], C["snapshot_date"]),
-        (C["score"], C["score"]),
         (C["owner"], C["owner"]),
         (C["weight"], C["weight"]),
     ]
-    for opt in ("pct_docs", "freshness_status"):
-        if C.get(opt):
-            pairs.append((C[opt], C[opt]))
-    for comp in config.COMPONENT_WEIGHTS:
-        if comp["column"]:
-            pairs.append((comp["column"], comp["column"]))
+    for m in config.SCORE_METRICS:
+        pairs.append((m["column"], m["column"]))
+        for comp in (m.get("components") or []):
+            if comp.get("column"):
+                pairs.append((comp["column"], comp["column"]))
 
     seen, select = set(), []
     for physical, alias in pairs:

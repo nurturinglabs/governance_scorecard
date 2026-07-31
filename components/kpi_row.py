@@ -14,6 +14,16 @@ import streamlit as st
 import theme
 
 
+def _accent_for(card: dict) -> str | None:
+    """Top-strip status color: score band for the score card, red/green for
+    the below-threshold card, none for plain counts."""
+    if "score" in card["label"].lower():
+        return theme.score_color(card.get("value"))
+    if card.get("inverse"):
+        return theme.DOWN if (card.get("value") or 0) > 0 else theme.UP
+    return None
+
+
 def _card_html(card: dict, spark_html: str | None = None) -> str:
     value = card["value"] if card["value"] is not None else "—"
     delta_html = ""
@@ -23,16 +33,24 @@ def _card_html(card: dict, spark_html: str | None = None) -> str:
         arrow = "▲" if cls == "up" else "▼"
         delta_html = f"<div class='gov-kpi-d {cls}'>{arrow} {d} WoW</div>"
     sub_html = f"<div class='gov-kpi-sub'>{card['sub']}</div>" if card.get("sub") else ""
-    top_row = f"<div class='gov-kpi-v'>{value}</div>"
+
+    value_row = f"<div class='gov-kpi-v'>{value}</div>"
     if spark_html:
-        top_row = (
+        value_row = (
             "<div style='display:flex;align-items:flex-end;justify-content:space-between;gap:8px;'>"
             f"<div class='gov-kpi-v'>{value}</div>{spark_html}</div>")
+
+    accent = _accent_for(card)
+    accent_html = f"<div class='accent' style='background:{accent};'></div>" if accent else ""
+
     return (
         "<div class='gov-kpi'>"
-        f"<div class='gov-kpi-l'>{card['label']}</div>"
-        f"{top_row}"
-        f"{delta_html}{sub_html}"
+        f"{accent_html}"
+        "<div class='gov-kpi-head'>"
+        f"<span class='gov-kpi-l'>{card['label']}</span>"
+        f"<span class='gov-kpi-icon'>{theme.kpi_icon(card['label'])}</span>"
+        "</div>"
+        f"{value_row}{delta_html}{sub_html}"
         "</div>")
 
 
