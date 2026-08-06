@@ -63,16 +63,31 @@ does).
 
 ### Deploy to Streamlit-in-Snowflake
 
-1. Set `GOV_RUN_MODE=snowflake` (or edit `config.RUN_MODE`).
+The shipped package (`dist/governance_scorecard_sis.zip`) currently deploys
+**csv-backed** — `config.RUN_MODE` defaults to `"csv"` in that zip specifically
+(not `"local"`, since there's no `synthetic/` folder in it) and it bundles
+`csv_data/products.csv` + `csv_data/tables.csv` as an interim source. That's
+so the app is live and usable in Snowsight *before* the real Snowflake table
+exists — swap in real CSV exports by re-running the packaging steps below
+with your own files in `csv_data/`, or cut over to Snowflake once the table's
+ready (see the next section).
+
+1. Upload the files listed below to a SiS stage / create the Streamlit object
+   with `MAIN_FILE='app.py'`.
+2. That's it for csv mode — the zip's `config.py` already defaults to `"csv"`.
+
+#### Cutting over to Snowflake later
+
+1. Set the `GOV_RUN_MODE=snowflake` environment variable on the Streamlit app
+   (Snowsight app settings), or edit `config.RUN_MODE`'s default directly.
 2. Confirm `config.SNOWFLAKE["history_table"]`, `config.COLUMNS`, and
    `config.SCORE_METRICS[*]["column"]` match the real table (see **Handoff**
    below).
-3. Upload the files listed below to a SiS stage / create the Streamlit object
-   with `MAIN_FILE='app.py'`.
 
-No other code changes. `data.py` loads the fact via `_snowflake.py`
-(`get_active_session().sql(...)`); all rollups run in the same pandas code as
-local/csv, so the modes cannot disagree.
+No other code changes either way. `data.py` loads the fact via
+`_snowflake.py` (`get_active_session().sql(...)`) or the CSV loader; all
+rollups run in the same pandas code regardless of mode, so they cannot
+disagree.
 
 #### Files required for the SiS package
 
@@ -82,7 +97,7 @@ zipping this list after any code change; see the note below).
 
 ```
 app.py                        entry point — set as the object's MAIN_FILE
-config.py
+config.py                     RUN_MODE defaults to "csv" in this package (see above)
 data.py
 _snowflake.py
 theme.py
@@ -94,12 +109,14 @@ components/trend_chart.py
 environment.yml               conda deps (pandas/numpy/pyarrow/altair) — SiS
                               already provides streamlit + snowflake-snowpark-python
 .streamlit/config.toml        theme — app runs without it but loses the navy/gold styling
+csv_data/products.csv         current data source — replace with your own export any time
+csv_data/tables.csv           current data source — replace with your own export any time
 ```
 
 **Not required at runtime** — leave these out of the SiS package:
 
-- `synthetic/` — local-mode demo data generator, not read when `RUN_MODE="snowflake"`
-- `csv_data/` — csv-mode demo data, not read when `RUN_MODE="snowflake"`
+- `synthetic/` — local-mode demo data generator, not read in csv or snowflake mode
+- `csv_data/` — drop this once you cut over to `RUN_MODE="snowflake"`
 - `smoke_test.py` — dev-only verification
 - `requirements.txt` — pip; SiS resolves packages from `environment.yml` (conda) instead
 - `README.md`, `dist/`, `.gitignore`, `.git/` — repo/doc scaffolding, not imported by the app
