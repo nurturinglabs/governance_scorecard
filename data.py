@@ -8,8 +8,8 @@ run modes. RUN_MODE decides only how the raw table-grain fact is *loaded*:
                  too, if present — see _products_fact() below)
     snowflake -> session.sql(...).to_pandas()  (see _snowflake.py)
 
-Everything after loading — scope filtering, exclusion, rollups, KPIs, drill rows,
-heatmap, breakdown — is backend-agnostic and lives here, so the modes can never
+Everything after loading — scope filtering, exclusion, rollups, KPIs, drill
+rows, heatmap — is backend-agnostic and lives here, so the modes can never
 disagree. Components and app.py call these functions and never touch SQL, a
 Snowpark session, a CSV path, or a raw column name.
 
@@ -431,40 +431,6 @@ def _weakest_dimension(snap: pd.DataFrame, metric: str) -> dict:
         if ratio < worst_ratio:
             worst_ratio, worst = ratio, c
     return {"label": worst["label"], "sub": f"avg {round(worst_ratio * 100)}%"}
-
-
-@_cache
-def get_worst_breakdown(product_id, as_of, threshold: int = None,
-                        method: str = None, metric: str = None) -> dict:
-    """Worst scored table in a product on the selected metric, + its component
-    breakdown (leaf card)."""
-    thr, _, metric = _defaults(threshold, None, metric)
-    score_col = config.score_metric(metric)["column"]
-    f = _fact()
-    latest = _as_ts(as_of)
-    snap = f[(f[PRODUCT] == product_id) & (f[SNAP] == latest)]
-    if snap.empty:
-        return {"found": False}
-    row = snap.sort_values(score_col).iloc[0]
-    comps = _component_columns(metric)
-    result = {
-        "found": True,
-        "fqn": row[FQN],
-        "label": str(row[FQN]).split(".")[-1],
-        "score": int(row[score_col]),
-        "threshold": thr,
-        "has_components": bool(comps),
-    }
-    if comps:
-        result["components"] = [
-            {"label": c["label"], "pts": int(row[c["column"]]), "max": c["max"],
-             "ratio": float(row[c["column"]]) / c["max"], "icon": c.get("icon")}
-            for c in comps
-        ]
-    else:  # graceful fallback: worst table trend (no confirmed component columns)
-        hist = (f[f[FQN] == row[FQN]].sort_values(SNAP).tail(config.HEATMAP_WEEKS))
-        result["series"] = [round(float(s)) for s in hist[score_col].tolist()]
-    return result
 
 
 # --------------------------------------------------------------------------- #

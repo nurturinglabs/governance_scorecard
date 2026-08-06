@@ -24,7 +24,7 @@ import streamlit as st
 import config
 import data
 import theme
-from components import breakdown_card, heatmap, kpi_row
+from components import heatmap, kpi_row
 
 st.set_page_config(page_title="Data Governance Scorecard", page_icon=None, layout="wide")
 theme.apply_theme()
@@ -78,12 +78,20 @@ def metric_selector() -> str:
                 "in the loaded data. Check config.SCORE_METRICS[*]['column'] "
                 "against the source.")
         st.stop()
-    labels = [m["label"] for m in metrics]
-    label_to_key = {m["label"]: m["key"] for m in metrics}
-    default_label = metrics[0]["label"]
-    chosen = st.segmented_control(
-        "Viewing score", options=labels, default=default_label,
-        required=True, key="score_metric_label")
+    # short display labels for the pills only ("Metadata score" -> "Metadata")
+    # — the full label is still used everywhere else (KPI cell, heatmap title)
+    short = {m["label"]: m["label"].removesuffix(" score") for m in metrics}
+    labels = [short[m["label"]] for m in metrics]
+    label_to_key = {short[m["label"]]: m["key"] for m in metrics}
+    default_label = short[metrics[0]["label"]]
+
+    vcol, scol = st.columns([1, 11], vertical_alignment="center")
+    with vcol:
+        st.markdown("<span class='gov-viewing-l'>Viewing</span>", unsafe_allow_html=True)
+    with scol:
+        chosen = st.segmented_control(
+            "Viewing score", options=labels, default=default_label, required=True,
+            label_visibility="collapsed", key="score_metric_label")
     return label_to_key.get(chosen, metrics[0]["key"])
 
 
@@ -94,7 +102,7 @@ def render_products_page(opts: dict) -> None:
     as_of, thr, method, metric = opts["as_of"], opts["threshold"], opts["rollup"], opts["metric"]
     metric_label = config.score_metric(metric)["label"]
 
-    st.markdown("## All products")
+    st.markdown(theme.page_title("All products"), unsafe_allow_html=True)
 
     trend = data.get_trend("products", None, as_of, config.TREND_WEEKS, thr, method, metric)
     kpi_row.render(data.get_kpis("products", None, as_of, thr, method, metric),
@@ -125,31 +133,28 @@ def render_tables_page(product: str, opts: dict) -> None:
         st.session_state.product = None
         st.rerun()
 
-    st.markdown(f"## {product}")
+    kpis = data.get_kpis("tables", product, as_of, thr, method, metric)
+    n_tables = kpis[1]["value"]
+    st.markdown(theme.page_title(product, sub=f"{n_tables} tables" if n_tables is not None else None),
+               unsafe_allow_html=True)
 
     trend = data.get_trend("tables", product, as_of, config.TREND_WEEKS, thr, method, metric)
-    kpi_row.render(data.get_kpis("tables", product, as_of, thr, method, metric),
-                   trend_series=trend["score"].tolist())
+    kpi_row.render(kpis, trend_series=trend["score"].tolist())
     st.write("")
 
-    breakdown_card.render(data.get_worst_breakdown(product, as_of, thr, method, metric))
-
-    st.write("")
     heat = data.get_heatmap("tables", product, as_of, config.HEATMAP_WEEKS, thr, method, metric)
-    heatmap.render(
-        heat, title=f"{metric_label} by table", clickable=False,
-        tooltip=lambda r: r["top_gap"], key_prefix="hm_table")
+    heatmap.render(heat, title=f"{metric_label} by table", clickable=False, key_prefix="hm_table")
 
 
 def render_header(opts: dict) -> None:
     badges = [
-        f"As of {opts['as_of'].strftime('%b %d, %Y')}",
+        f"As of {opts['as_of'].strftime('%b %d')}",
         f"Pass ≥ {opts['threshold']}",
-        f"{opts['rollup'].replace('_', ' ').capitalize()} rollup",
+        opts["rollup"].replace("_", " ").capitalize(),
     ]
     st.markdown(
         theme.app_header("Data Governance Scorecard",
-                         tagline="Weekly quality & ownership tracking",
+                         tagline="Weekly quality and ownership tracking",
                          badges=badges),
         unsafe_allow_html=True)
 

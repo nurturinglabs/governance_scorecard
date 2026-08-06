@@ -5,8 +5,8 @@ Runs the data layer across both levels (products -> tables) and both score
 metrics, then executes the whole app headlessly via Streamlit's AppTest
 harness: page 1 (products, hero heatmap, no ranked list), the score-metric
 selector, clicking a heatmap row to drill into a product, page 2 (tables,
-breakdown card, hero heatmap, no ranked list), and the sidebar threshold/
-rollup controls. Exits non-zero on any failure.
+hero heatmap, no ranked list), and the sidebar threshold/rollup controls.
+Exits non-zero on any failure.
 
     python smoke_test.py
 """
@@ -41,9 +41,6 @@ def _data_layer() -> None:
     assert not tch.empty
     assert "top_gap" in tch.columns
     assert "owner" not in tch.columns, "owner details should have been removed"
-
-    bd = data.get_worst_breakdown(prod, aof, metric=metrics[0])
-    assert bd["found"]
 
     # switching metric must actually change the numbers (independent columns)
     scores_by_metric = {m: data.get_trend("products", None, aof, metric=m)["score"].iloc[-1]
@@ -111,7 +108,7 @@ def _app() -> None:
     at.run()
     assert not at.exception, at.exception
     md = "\n".join(m.value for m in at.markdown)
-    assert "gov-kpis" in md, "KPI cards missing"
+    assert "gov-kpi-strip" in md, "KPI strip missing"
     assert "gov-hm-strip" in md, "hero heatmap missing"
     assert "gov-row" not in md, "ranked product list should have been removed"
     assert "gov-tbl" not in md, "tables table should have been removed"
@@ -121,12 +118,12 @@ def _app() -> None:
           "score selector present, no ranked list")
 
     # Switch the score metric and confirm the page re-renders without error.
-    at.segmented_control[0].set_value("Role score").run()
+    at.segmented_control[0].set_value("Role").run()
     assert not at.exception, at.exception
     md = "\n".join(m.value for m in at.markdown)
     assert "Role score" in md, "KPI card did not switch to the selected metric"
     print("  score-metric switch ok — KPI/heatmap follow the selector")
-    at.segmented_control[0].set_value("Metadata score").run()
+    at.segmented_control[0].set_value("Metadata").run()
 
     # Click a heatmap row (the real drill affordance, not a session_state shortcut).
     row_btn = next(b for b in at.button if b.label == "Recon & Controls")
@@ -135,7 +132,7 @@ def _app() -> None:
     assert at.session_state["page"] == "tables"
     assert at.session_state["product"] == "Recon & Controls"
     md = "\n".join(m.value for m in at.markdown)
-    assert "Biggest drag" in md, "breakdown card missing"
+    assert "Biggest drag" not in md, "breakdown card should have been removed"
     assert "gov-hm-strip" in md, "tables heatmap missing"
     assert "gov-tbl" not in md, "tables table should have been removed"
     assert "gov-row" not in md, "ranked list should have been removed"

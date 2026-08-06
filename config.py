@@ -129,10 +129,10 @@ ROLLUP_METHOD = "average"
 # whose `min` the score meets.
 # --------------------------------------------------------------------------- #
 SCORE_BANDS = [
-    {"min": 85, "color": "#639922", "text": "#173404", "label": "Strong"},
-    {"min": 75, "color": "#97C459", "text": "#173404", "label": "Healthy"},
-    {"min": 65, "color": "#EF9F27", "text": "#4A1B0C", "label": "At risk"},
-    {"min": 0,  "color": "#E24B4A", "text": "#4A1B0C", "label": "Failing"},
+    {"min": 85, "color": "#6FA83C", "text": "#16330A", "label": "Strong"},
+    {"min": 75, "color": "#AFD07A", "text": "#24400A", "label": "Healthy"},
+    {"min": 65, "color": "#F2B04A", "text": "#4A2B02", "label": "At risk"},
+    {"min": 0,  "color": "#EF6C63", "text": "#4A0F0C", "label": "Failing"},
 ]
 
 
