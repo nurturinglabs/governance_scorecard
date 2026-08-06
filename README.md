@@ -102,10 +102,8 @@ data.py
 _snowflake.py
 theme.py
 components/__init__.py
-components/breakdown_card.py
 components/heatmap.py
 components/kpi_row.py
-components/trend_chart.py
 environment.yml               conda deps (pandas/numpy/pyarrow/altair) — SiS
                               already provides streamlit + snowflake-snowpark-python
 .streamlit/config.toml        theme — app runs without it but loses the navy/gold styling
@@ -135,11 +133,8 @@ governance_scorecard/
   _snowflake.py           Snowflake fact loader (only Snowflake-aware module)
   theme.py                design tokens + global CSS + score-color/sparkline helpers
   components/
-    kpi_row.py            four metric cards with WoW deltas + score sparkline
+    kpi_row.py            divided KPI strip with WoW deltas + score sparkline
     heatmap.py             the hero view — entity x week grid, clickable rows on page 1
-    breakdown_card.py      leaf-only worst-table score decomposition ("Biggest drag")
-    trend_chart.py          Altair fallback chart (breakdown card only, when a metric
-                            has no configured components)
   synthetic/
     generate.py            deterministic dummy data generator — writes parquet AND
                            the demo csv_data/*.csv exports
