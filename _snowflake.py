@@ -35,7 +35,6 @@ def _select_sql() -> str:
         (C["table"], C["table"]),
         (C["table_fqn"], C["table_fqn"]),
         (C["snapshot_date"], C["snapshot_date"]),
-        (C["owner"], C["owner"]),
         (C["weight"], C["weight"]),
     ]
     for m in config.SCORE_METRICS:

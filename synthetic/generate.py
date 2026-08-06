@@ -16,7 +16,8 @@ still following the product's overall trajectory (rising/stable/decaying).
 Baked-in signal (so the app has stories to show):
   * products that visibly rise or decay week over week, on every metric
   * a spread of below-threshold tables per metric
-  * tables with MISSING owners (drags role_score down specifically)
+  * tables with poor ownership hygiene (drags role_score down specifically —
+    owner identity itself is not tracked/displayed anywhere in the app)
   * staging tables (…_STG/_TMP/_BKP) that SCOPE_EXCLUDE should catch
 
 Run from the project root:
@@ -111,14 +112,14 @@ def build_entities() -> list[dict]:
                 prng = _rng_for("tbl", fqn)
                 jitter = lambda spread=0.12: float(prng.normal(0, spread))  # noqa: E731
 
-                # Ownership: binary. Staging tables usually unowned; otherwise
-                # ownership probability tracks the product baseline.
+                # Ownership hygiene (binary, not persisted — only its effect on
+                # role_score's baseline is kept). Staging tables usually lack
+                # an assigned owner; otherwise ownership probability tracks
+                # the product baseline.
                 if is_staging:
                     has_owner = prng.random() < 0.15
                 else:
                     has_owner = prng.random() < (0.55 + 0.4 * baseline)
-                owner = (S["owner_pool"][int(prng.integers(0, len(S["owner_pool"])))]
-                         if has_owner else None)
 
                 # Per-metric baselines (attainment 0..1), independent of each
                 # other so metadata/role/activity tell different stories on
@@ -142,7 +143,6 @@ def build_entities() -> list[dict]:
                     "schema_name": schema,
                     "table_name": name,
                     "table_fqn": fqn,
-                    "owner": owner,
                     "weight": weight,
                     "trajectory": trajectory,
                     "is_staging": is_staging,
@@ -171,7 +171,6 @@ def build_history(entities: list[dict]) -> pd.DataFrame:
                 "table_name": e["table_name"],
                 "table_fqn": e["table_fqn"],
                 "snapshot_date": snap,
-                "owner": e["owner"],
                 "weight": e["weight"],
             }
             for m in METRICS:
@@ -216,7 +215,6 @@ def summarize(df: pd.DataFrame) -> None:
           f"databases: {df['database_name'].nunique()}")
     print(f"excluded (scope): {cur['table_name'].map(config.is_excluded).sum()} "
           f"of {len(cur)} tables at latest snapshot")
-    print(f"unowned tables (scored): {scored['owner'].isna().sum()}")
 
     for m in METRICS:
         col = m["column"]
@@ -227,7 +225,36 @@ def summarize(df: pd.DataFrame) -> None:
         for name, val in prod.items():
             print(f"    {val:5.1f}  {name}")
         worst = scored.sort_values(col).iloc[0]
-        print(f"  worst table: {worst['table_fqn']}  {col}={worst[col]}  owner={worst['owner']}")
+        print(f"  worst table: {worst['table_fqn']}  {col}={worst[col]}")
+
+
+def export_csv(df: pd.DataFrame) -> None:
+    """Also emit the two RUN_MODE="csv" demo exports from the same synthetic
+    history, so csv mode has something to point at without any real tracker:
+      - tables.csv  : a straight table-grain dump, headers renamed per
+                      config.CSV["tables_columns"] / SCORE_METRICS[*]["csv_column"]
+      - products.csv: a product-grain rollup (simple average of the SCOPED —
+                      exclusion-applied — tables) standing in for a business
+                      team's own product-level tracker.
+    """
+    config.CSV_DIR.mkdir(parents=True, exist_ok=True)
+    metric_csv = {m["column"]: m["csv_column"] for m in METRICS if m.get("csv_column")}
+
+    tables_map = {**config.CSV["tables_columns"], **metric_csv}
+    tables_out = df.rename(columns={canon: csv_col for canon, csv_col in tables_map.items()})
+    tables_out[list(tables_map.values())].to_csv(config.CSV["tables_file"], index=False)
+
+    scored = df[~df["table_name"].map(config.is_excluded)]
+    agg = {m["column"]: "mean" for m in METRICS}
+    prod = scored.groupby(["data_product", "snapshot_date"], as_index=False).agg(agg)
+    for m in METRICS:
+        prod[m["column"]] = prod[m["column"]].round(1)
+    products_map = {**config.CSV["products_columns"], **metric_csv}
+    prod_out = prod.rename(columns={canon: csv_col for canon, csv_col in products_map.items()})
+    prod_out[list(products_map.values())].to_csv(config.CSV["products_file"], index=False)
+
+    print(f"wrote {config.CSV['tables_file']}")
+    print(f"wrote {config.CSV['products_file']}")
 
 
 def main() -> None:
@@ -240,6 +267,7 @@ def main() -> None:
                          "snapshot_date"]).reset_index(drop=True)
     df.to_parquet(config.FACT_PARQUET, index=False)
     print(f"wrote {config.FACT_PARQUET}")
+    export_csv(df)
     summarize(df)
 
 

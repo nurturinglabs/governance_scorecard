@@ -29,8 +29,6 @@ def render(bd: dict) -> None:
     if not bd.get("found"):
         return
 
-    owner = bd["owner"] or "unassigned"
-
     if bd.get("has_components"):
         bars = "".join(_bar(c["label"], c["pts"], c["max"], c["ratio"])
                        for c in bd["components"])
@@ -42,14 +40,14 @@ def render(bd: dict) -> None:
             f"<span style='margin-left:auto;font-size:20px;font-weight:600;color:#993c1d;'>{bd['score']}</span>"
             "</div>"
             f"<div style='font-size:12px;color:#993c1d;opacity:0.8;margin:2px 0 10px;'>"
-            f"owner: {owner} — why this table scores low, vs max points</div>"
+            f"why this table scores low, vs max points</div>"
             f"{bars}</div>")
         st.markdown(html, unsafe_allow_html=True)
     else:
         st.markdown(
             f"<div class='gov-drag'><span class='t'>Biggest drag · "
             f"<span class='gov-mono'>{bd['label']}</span></span> "
-            f"<span style='color:#993c1d;'>score {bd['score']} · owner {owner}</span></div>",
+            f"<span style='color:#993c1d;'>score {bd['score']}</span></div>",
             unsafe_allow_html=True)
         series = bd.get("series", [])
         if series:

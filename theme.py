@@ -105,32 +105,24 @@ _CSS = f"""
   .gov-kpi-d.down{{color:{DOWN};background:rgba(216,90,48,.12);}}
   .gov-kpi-sub{{font-size:12px;color:{TEXT_MUTED};margin-top:.45rem;}}
 
-  /* heatmap grid */
-  .gov-hm{{display:grid;gap:2px;align-items:center;justify-content:start;}}
-  .gov-hm-wk{{font-size:8px;color:{TEXT_MUTED};text-align:center;}}
-  .gov-hm-corner{{}}
-  .gov-hm-row{{font-size:11px;color:#3a4453;white-space:nowrap;overflow:hidden;
-              text-overflow:ellipsis;padding-right:6px;}}
-  .gov-hm-cell{{height:24px;width:100%;border-radius:3px;display:flex;align-items:center;
-               justify-content:center;font-size:11px;font-weight:700;}}
-  .gov-hm-cell.gap{{background:repeating-linear-gradient(45deg,#eef1f5,#eef1f5 4px,#f7f9fc 4px,#f7f9fc 8px);}}
+  /* heatmap — the hero view on both pages: big cells, big numbers */
+  .gov-hm-strip{{display:grid;gap:4px;align-items:center;}}
+  .gov-hm-wk{{font-size:10px;color:{TEXT_MUTED};text-align:center;}}
+  .gov-hm-cell{{height:34px;border-radius:5px;display:flex;align-items:center;
+               justify-content:center;font-size:14px;font-weight:600;}}
+  .gov-hm-cell.gap{{background:repeating-linear-gradient(45deg,#eef1f5,#eef1f5 5px,#f7f9fc 5px,#f7f9fc 10px);}}
   .gov-hm-legend{{display:flex;gap:12px;margin:2px 0 8px;font-size:11px;color:{TEXT_SECONDARY};}}
   .gov-hm-legend i{{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:4px;vertical-align:-1px;}}
+  .gov-hm-label{{font-size:14px;font-weight:500;color:{TEXT_PRIMARY};padding:4px 6px;
+                min-height:34px;display:flex;align-items:center;
+                white-space:normal;overflow-wrap:break-word;}}
 
-  /* page-1 product rows */
-  .gov-row{{display:grid;grid-template-columns:1.6fr 70px 90px 60px 60px 60px;
-           align-items:center;gap:10px;padding:10px 4px;border-top:1px solid {CARD_BORDER};font-size:13px;}}
-  .gov-row .name{{font-weight:500;}}
-  .gov-row .hdr{{font-size:11px;color:{TEXT_MUTED};border-top:none;padding-bottom:2px;}}
-  .gov-scorebar{{height:8px;border-radius:4px;background:{SUBTLE_FILL};position:relative;}}
-  .gov-scorebar > i{{display:block;height:100%;border-radius:4px;background:{NAVY};}}
-
-  /* page-2 tables list */
-  .gov-tbl{{width:100%;border-collapse:collapse;font-size:12px;}}
-  .gov-tbl th{{font-size:11px;color:{TEXT_MUTED};font-weight:400;text-align:left;padding:6px 8px;}}
-  .gov-tbl td{{padding:8px;border-top:1px solid {CARD_BORDER};white-space:nowrap;
-              overflow:hidden;text-overflow:ellipsis;}}
-  .gov-unowned{{color:{DOWN};}}
+  /* row-label buttons on the products heatmap read as links, not buttons */
+  div[data-testid="stButton"] > button[kind="tertiary"]{{
+    justify-content:flex-start;text-align:left;padding:4px 6px;font-size:14px;
+    font-weight:500;color:{TEXT_PRIMARY};border:none;background:transparent;min-height:34px;}}
+  div[data-testid="stButton"] > button[kind="tertiary"]:hover{{
+    color:{NAVY};background:{SUBTLE_FILL};border:none;}}
 
   /* breakdown / "biggest drag" card */
   .gov-drag{{background:#fcece7;border:1px solid #f0997b;border-radius:12px;padding:14px 16px;margin-top:.5rem;}}
@@ -138,9 +130,6 @@ _CSS = f"""
   .gov-drag .bar{{height:8px;background:rgba(0,0,0,.08);border-radius:4px;display:block;}}
   .gov-drag .bar > i{{display:block;height:100%;border-radius:4px;}}
   .gov-bd-row{{display:grid;grid-template-columns:130px 1fr 56px;align-items:center;gap:10px;margin:7px 0;}}
-
-  /* tertiary drill / back buttons */
-  div[data-testid="stButton"] button[kind="tertiary"]{{color:{NAVY};}}
 </style>
 """
 

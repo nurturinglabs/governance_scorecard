@@ -16,9 +16,11 @@ from datetime import date, timedelta
 from pathlib import Path
 
 # --------------------------------------------------------------------------- #
-# Run mode — the ONLY switch that flips local <-> Snowflake. No other change.
+# Run mode — the ONLY switch that flips the backend. No other code change.
 # --------------------------------------------------------------------------- #
 # "local"     -> data.py reads synthetic/*.parquet
+# "csv"       -> data.py reads the two CSV_* exports below (no Snowflake, no
+#                synthetic generator — point it at a real tracker export)
 # "snowflake" -> data.py runs session.sql(...).to_pandas() in SiS
 RUN_MODE = os.environ.get("GOV_RUN_MODE", "local").lower()
 
@@ -41,6 +43,34 @@ SNOWFLAKE = {
 }
 
 # --------------------------------------------------------------------------- #
+# CSV source (RUN_MODE="csv") — two plain CSV exports instead of Snowflake or
+# the synthetic parquet: one pre-aggregated at PRODUCT grain (one row per
+# product per week — the authoritative product number; the app does not
+# re-derive it by rolling up tables), one at TABLE grain (one row per table
+# per week, for the drill-down page). `python -m synthetic.generate` also
+# writes demo copies of both here so csv mode has something to point at.
+#
+# `*_columns` maps the app's canonical column name -> the CSV's literal
+# header text — edit the values to match your file, not the keys. Each score
+# metric's own header is its `csv_column` in SCORE_METRICS below.
+# --------------------------------------------------------------------------- #
+CSV_DIR = PROJECT_ROOT / "csv_data"
+CSV = {
+    "products_file": CSV_DIR / "products.csv",
+    "tables_file": CSV_DIR / "tables.csv",
+    "products_columns": {
+        "snapshot_date": "Date",
+        "data_product": "Data_Product",
+    },
+    "tables_columns": {
+        "snapshot_date": "Date",
+        "data_product": "Data_Product",
+        "schema_name": "Schema",
+        "table_name": "TABLE_NAME",
+    },
+}
+
+# --------------------------------------------------------------------------- #
 # Logical -> physical column mapping.
 # data.py refers to columns via COLUMNS["score"] etc., never by raw name, so a
 # schema difference is fixed here in one place.
@@ -52,7 +82,6 @@ COLUMNS = {
     "table": "table_name",
     "table_fqn": "table_fqn",          # stable id: DB.SCHEMA.TABLE
     "snapshot_date": "snapshot_date",
-    "owner": "owner",
     "weight": "weight",                # row count / criticality (weighted rollup)
 }
 
@@ -152,11 +181,19 @@ def is_excluded(table_name: str) -> bool:
 # scoped to one metric. Leave it None until those columns are confirmed in the
 # real table; data.py then degrades the breakdown card to the worst table's own
 # trend instead of inventing a decomposition that doesn't exist.
+#
+# `csv_column` is this metric's literal header in the CSV_* exports above
+# (RUN_MODE="csv" only). The picker at the top of the page only ever offers a
+# metric whose `column` is actually present in the loaded data (see
+# data.available_metrics()) — so a metric can be listed here "ahead of" the
+# data having it yet, or a CSV can carry more score columns than are listed
+# here and the extras are simply never offered. Either way, adding/removing a
+# metric is the only edit needed to change what's pickable.
 # --------------------------------------------------------------------------- #
 SCORE_METRICS = [
-    {"key": "metadata", "label": "Metadata score", "column": "metadata_score", "components": None},
-    {"key": "role",     "label": "Role score",     "column": "role_score",     "components": None},
-    {"key": "act",      "label": "Activity score", "column": "act_score",     "components": None},
+    {"key": "metadata", "label": "Metadata score", "column": "metadata_score", "csv_column": "Metadata_SCORE", "components": None},
+    {"key": "role",     "label": "Role score",     "column": "role_score",     "csv_column": "Role_SCORE",     "components": None},
+    {"key": "act",      "label": "Activity score", "column": "act_score",     "csv_column": "ACT_SCORE",      "components": None},
 ]
 DEFAULT_SCORE_METRIC = SCORE_METRICS[0]["key"]
 
@@ -188,7 +225,6 @@ SYNTHETIC = {
     "tables_per_database": (12, 22),  # inclusive range, sampled per database
     "inject_gaps": True,            # drop a few (table, week) rows to exercise
                                     # honest gap rendering in the heatmap
-    "owner_pool": ["k.burie", "i.botvinnik", "a.schulz", "m.nguyen", "r.patel"],
     # (name, trajectory, baseline_quality 0-1). Baseline drives the mean of the
     # "soft" dimensions; trajectory drifts them week over week.
     "products": [

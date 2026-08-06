@@ -2,12 +2,16 @@
 app.py — Data Governance Scorecard (Streamlit-in-Snowflake).
 
 Two pages, session-state routed:
-    Page 1 — Products : all data products, KPIs, portfolio trend, heatmap,
-                         ranked product list (click to drill).
+    Page 1 — Products : all data products, KPIs, portfolio trend, and the
+                         hero heatmap — clickable rows drill into a product.
     Page 2 — Tables    : the tables inside one product (drilled straight from
                          product -> table, no database level), KPIs scoped to
-                         the product, its trend, a table heatmap, the biggest-
-                         drag breakdown card, and a worst-first tables list.
+                         the product, its trend, the biggest-drag breakdown
+                         card, and the hero heatmap (terminal — no drill).
+
+The heatmap is the primary view on both pages: score (the `now` column),
+trend (left-to-right), and status (color) are all readable directly off it,
+so there is no separate ranked list/table underneath it.
 
 Local vs Snowflake is decided entirely by config.RUN_MODE; nothing in this file
 knows which backend is live.
@@ -20,7 +24,7 @@ import streamlit as st
 import config
 import data
 import theme
-from components import breakdown_card, heatmap, kpi_row, product_list, tables_list
+from components import breakdown_card, heatmap, kpi_row
 
 st.set_page_config(page_title="Data Governance Scorecard", page_icon=None, layout="wide")
 theme.apply_theme()
@@ -68,13 +72,19 @@ def sidebar() -> dict:
 # in the sidebar.
 # --------------------------------------------------------------------------- #
 def metric_selector() -> str:
-    labels = [m["label"] for m in config.SCORE_METRICS]
-    label_to_key = {m["label"]: m["key"] for m in config.SCORE_METRICS}
-    default_label = config.score_metric(config.DEFAULT_SCORE_METRIC)["label"]
+    metrics = data.available_metrics()
+    if not metrics:
+        st.error("No configured score column (config.SCORE_METRICS) was found "
+                "in the loaded data. Check config.SCORE_METRICS[*]['column'] "
+                "against the source.")
+        st.stop()
+    labels = [m["label"] for m in metrics]
+    label_to_key = {m["label"]: m["key"] for m in metrics}
+    default_label = metrics[0]["label"]
     chosen = st.segmented_control(
         "Viewing score", options=labels, default=default_label,
         required=True, key="score_metric_label")
-    return label_to_key.get(chosen, config.DEFAULT_SCORE_METRIC)
+    return label_to_key.get(chosen, metrics[0]["key"])
 
 
 # --------------------------------------------------------------------------- #
@@ -92,11 +102,10 @@ def render_products_page(opts: dict) -> None:
     st.write("")
 
     heat = data.get_heatmap("products", None, as_of, config.HEATMAP_WEEKS, thr, method, metric)
-    heatmap.render(heat, thr, title=f"{metric_label} by product")
-
-    st.write("")
-    children = data.get_children("products", None, as_of, config.HEATMAP_WEEKS, thr, method, metric)
-    selected = product_list.render(children, title="Products")
+    selected = heatmap.render(
+        heat, title=f"{metric_label} by product", clickable=True,
+        tooltip=lambda r: f"{r['tables']} tables · {r['below']} below threshold",
+        key_prefix="hm_product")
 
     if selected is not None:
         st.session_state.page = "tables"
@@ -127,11 +136,9 @@ def render_tables_page(product: str, opts: dict) -> None:
 
     st.write("")
     heat = data.get_heatmap("tables", product, as_of, config.HEATMAP_WEEKS, thr, method, metric)
-    heatmap.render(heat, thr, title=f"{metric_label} by table")
-
-    st.write("")
-    children = data.get_children("tables", product, as_of, config.HEATMAP_WEEKS, thr, method, metric)
-    tables_list.render(children, title="Tables")
+    heatmap.render(
+        heat, title=f"{metric_label} by table", clickable=False,
+        tooltip=lambda r: r["top_gap"], key_prefix="hm_table")
 
 
 def render_header(opts: dict) -> None:
