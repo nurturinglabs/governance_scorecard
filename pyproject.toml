@@ -1,0 +1,34 @@
+[project]
+name = "governance-scorecard"
+version = "0.1.0"
+description = "Data Governance Scorecard — Streamlit app tracking weekly metadata/role/activity scores by data product and table, backed by local parquet, CSV exports, or Snowflake."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "streamlit>=1.39",
+    "altair>=5.0",
+    "pandas>=2.0",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+# RUN_MODE="local" only (reads/writes synthetic/*.parquet via
+# `python -m synthetic.generate`) — not needed for csv or snowflake mode.
+local = ["pyarrow>=14.0"]
+# Only needed for local testing against a live Snowflake; the
+# Streamlit-in-Snowflake runtime provides this automatically.
+snowflake = ["snowflake-snowpark-python>=1.20"]
+
+[tool.uv]
+package = false
+
+# This is a flat-module Streamlit app (app.py imports config/data/theme as
+# top-level modules, not a package), so there's no package for setuptools to
+# auto-discover — list the modules explicitly so `pip install .` still works
+# for tools/scanners that expect a build backend.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["app", "config", "data", "theme", "_snowflake"]

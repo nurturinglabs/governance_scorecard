@@ -4,5 +4,9 @@ channels:
 dependencies:
   - pandas
   - numpy
-  - pyarrow
   - altair
+  # pyarrow not listed: not needed for RUN_MODE="csv" (this package's default)
+  # or "snowflake" (Snowpark's to_pandas() brings its own Arrow support via
+  # the SiS runtime's built-in snowflake-snowpark-python). Only RUN_MODE=
+  # "local" (reads/writes synthetic/*.parquet) needs it — add it back if you
+  # ever run that mode inside Snowflake.

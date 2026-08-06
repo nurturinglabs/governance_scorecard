@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 venv/
 .DS_Store
+*.egg-info/
 # generated synthetic data (regenerate with: python -m synthetic.generate)
 synthetic/*.parquet
 csv_data/*.csv

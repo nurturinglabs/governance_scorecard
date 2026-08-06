@@ -3,7 +3,10 @@ streamlit>=1.39
 altair>=5.0
 pandas>=2.0
 numpy>=1.24
-pyarrow>=14.0
+# RUN_MODE="local" only (reads/writes synthetic/*.parquet) — not needed for
+# csv or snowflake mode. Uncomment if you use `python -m synthetic.generate`
+# or RUN_MODE="local":
+# pyarrow>=14.0
 # Snowflake mode only — provided by the Streamlit-in-Snowflake runtime.
 # Uncomment for local testing against a live Snowflake:
 # snowflake-snowpark-python>=1.20
