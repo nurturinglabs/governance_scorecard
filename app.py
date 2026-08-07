@@ -26,7 +26,7 @@ import data
 import theme
 from components import heatmap, kpi_row
 
-st.set_page_config(page_title="Data Governance Scorecard", page_icon=None, layout="wide")
+st.set_page_config(page_title="Data Governance Scorecard", page_icon="🛡️", layout="wide")
 theme.apply_theme()
 
 # --------------------------------------------------------------------------- #
@@ -146,22 +146,15 @@ def render_tables_page(product: str, opts: dict) -> None:
     heatmap.render(heat, title=f"{metric_label} by table", clickable=False, key_prefix="hm_table")
 
 
-def render_header(opts: dict) -> None:
-    badges = [
-        f"As of {opts['as_of'].strftime('%b %d')}",
-        f"Pass ≥ {opts['threshold']}",
-        opts["rollup"].replace("_", " ").capitalize(),
-    ]
+def render_header() -> None:
     st.markdown(
-        theme.app_header("Data Governance Scorecard",
-                         tagline="Weekly quality and ownership tracking",
-                         badges=badges),
+        theme.app_header("Governance Scorecard", tagline="Data Health Tracker"),
         unsafe_allow_html=True)
 
 
 def main() -> None:
     opts = sidebar()
-    render_header(opts)
+    render_header()
     opts["metric"] = metric_selector()
     if st.session_state.page == "tables" and st.session_state.product:
         render_tables_page(st.session_state.product, opts)

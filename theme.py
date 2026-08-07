@@ -8,16 +8,27 @@ breakdown bars all agree on one palette — nothing below hardcodes a band color
 
 from __future__ import annotations
 
+import base64
+from pathlib import Path
+
 import streamlit as st
 
 import config
+
+_ICON_PATH = Path(__file__).resolve().parent / "icon.jpeg"
+
+
+@st.cache_data
+def _icon_data_uri() -> str:
+    b64 = base64.b64encode(_ICON_PATH.read_bytes()).decode()
+    return f"data:image/jpeg;base64,{b64}"
 
 # --------------------------------------------------------------------------- #
 # Design tokens — define once, everything references these. Band colors come
 # from config.SCORE_BANDS, not duplicated here.
 # --------------------------------------------------------------------------- #
-NAVY = "#0A2A4E"           # header bar background
-GOLD = "#F2C24E"           # header title / context tags
+NAVY = "#002147"           # header bar background (Oxford Blue)
+GOLD = "#FFBA08"           # header title / context tags (Selective Yellow)
 GOLD_TILE_BG = "rgba(242,194,78,.15)"
 GOLD_TAG_BORDER = "rgba(242,194,78,.45)"
 SUBTITLE_COLOR = "rgba(233,222,196,.75)"
@@ -57,13 +68,14 @@ _CSS = f"""
   /* app header — top-of-page brand bar, shown on every page */
   .gov-appheader{{background:{NAVY};display:flex;align-items:center;justify-content:space-between;
                  padding:16px 20px;margin-bottom:18px;border-radius:12px;gap:12px;}}
-  .gov-appheader .brand{{display:flex;align-items:center;gap:12px;}}
-  .gov-appheader .brand-mark{{width:34px;height:34px;border-radius:9px;flex:none;
-                              background:{GOLD_TILE_BG};color:{GOLD};
-                              display:flex;align-items:center;justify-content:center;font-size:18px;}}
-  .gov-appheader h1{{font-family:{FONT_HEADING};font-size:19px;font-weight:600;
-                     color:{GOLD};margin:0;letter-spacing:.2px;line-height:1.3;}}
-  .gov-appheader .tagline{{font-size:12px;color:{SUBTITLE_COLOR};margin-top:1px;}}
+  .gov-appheader .brand{{display:flex;align-items:center;gap:16px;}}
+  .gov-appheader .brand-mark{{width:38px;height:38px;border-radius:9px;flex:none;
+                              display:flex;align-items:center;justify-content:center;overflow:hidden;}}
+  .gov-appheader .brand-mark img{{width:100%;height:100%;object-fit:cover;}}
+  .gov-appheader .brand-divider{{width:2px;height:52px;flex:none;background:{GOLD};}}
+  .gov-appheader h1{{font-family:{FONT_HEADING};font-size:28px;font-weight:600;
+                     color:{GOLD};margin:0;letter-spacing:.2px;line-height:1;}}
+  .gov-appheader .tagline{{font-size:14px;font-weight:400;color:{SUBTITLE_COLOR};margin-top:-6px;}}
   .gov-appheader .badges{{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}}
   .gov-appheader .badge{{font-size:12px;color:{GOLD};border:0.5px solid {GOLD_TAG_BORDER};
                         padding:3px 11px;border-radius:999px;white-space:nowrap;}}
@@ -226,7 +238,8 @@ def app_header(title: str, tagline: str | None = None, badges: list[str] | None 
     return (
         "<div class='gov-appheader'>"
         "<div class='brand'>"
-        "<div class='brand-mark'>&#9733;</div>"
+        f"<div class='brand-mark'><img src='{_icon_data_uri()}' alt='logo'/></div>"
+        "<div class='brand-divider'></div>"
         f"<div><h1>{title}</h1>{tagline_html}</div>"
         "</div>"
         f"<div class='badges'>{badges_html}</div>"
