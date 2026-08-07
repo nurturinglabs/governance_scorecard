@@ -72,16 +72,13 @@ _CSS = f"""
   .gov-appheader .brand-mark{{width:56px;height:56px;border-radius:11px;flex:none;
                               display:flex;align-items:center;justify-content:center;overflow:hidden;}}
   .gov-appheader .brand-mark img{{width:100%;height:100%;object-fit:cover;}}
-  .gov-appheader .brand-divider{{width:2px;height:68px;flex:none;background:{GOLD};}}
+  .gov-appheader .brand-divider{{width:4px;height:80px;flex:none;background:{GOLD};border-radius:2px;}}
   .gov-appheader h1{{font-family:{FONT_HEADING};font-size:28px;font-weight:600;
                      color:{GOLD};margin:0;letter-spacing:.2px;line-height:1;}}
   .gov-appheader .tagline{{font-size:14px;font-weight:400;color:{SUBTITLE_COLOR};margin-top:-6px;}}
   .gov-appheader .badges{{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}}
   .gov-appheader .badge{{font-size:12px;color:{GOLD};border:0.5px solid {GOLD_TAG_BORDER};
                         padding:3px 11px;border-radius:999px;white-space:nowrap;}}
-
-  /* "Viewing" score-metric selector row */
-  .gov-viewing-l{{font-size:12px;color:{TEXT_MUTED};}}
 
   /* segmented control (native widget) — flatten to the mockup's plain
      hairline-bordered pill group instead of Streamlit's default blue

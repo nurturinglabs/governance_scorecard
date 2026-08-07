@@ -85,13 +85,9 @@ def metric_selector() -> str:
     label_to_key = {short[m["label"]]: m["key"] for m in metrics}
     default_label = short[metrics[0]["label"]]
 
-    vcol, scol = st.columns([1, 11], vertical_alignment="center")
-    with vcol:
-        st.markdown("<span class='gov-viewing-l'>Viewing</span>", unsafe_allow_html=True)
-    with scol:
-        chosen = st.segmented_control(
-            "Viewing score", options=labels, default=default_label, required=True,
-            label_visibility="collapsed", key="score_metric_label")
+    chosen = st.segmented_control(
+        "Viewing score", options=labels, default=default_label, required=True,
+        label_visibility="collapsed", key="score_metric_label")
     return label_to_key.get(chosen, metrics[0]["key"])
 
 
