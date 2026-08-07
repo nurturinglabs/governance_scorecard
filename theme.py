@@ -69,10 +69,10 @@ _CSS = f"""
   .gov-appheader{{background:{NAVY};display:flex;align-items:center;justify-content:space-between;
                  padding:16px 20px;margin-bottom:18px;border-radius:12px;gap:12px;}}
   .gov-appheader .brand{{display:flex;align-items:center;gap:16px;}}
-  .gov-appheader .brand-mark{{width:38px;height:38px;border-radius:9px;flex:none;
+  .gov-appheader .brand-mark{{width:56px;height:56px;border-radius:11px;flex:none;
                               display:flex;align-items:center;justify-content:center;overflow:hidden;}}
   .gov-appheader .brand-mark img{{width:100%;height:100%;object-fit:cover;}}
-  .gov-appheader .brand-divider{{width:2px;height:52px;flex:none;background:{GOLD};}}
+  .gov-appheader .brand-divider{{width:2px;height:68px;flex:none;background:{GOLD};}}
   .gov-appheader h1{{font-family:{FONT_HEADING};font-size:28px;font-weight:600;
                      color:{GOLD};margin:0;letter-spacing:.2px;line-height:1;}}
   .gov-appheader .tagline{{font-size:14px;font-weight:400;color:{SUBTITLE_COLOR};margin-top:-6px;}}
